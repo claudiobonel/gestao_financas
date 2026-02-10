@@ -1,308 +1,278 @@
-const STORAGE_KEY = "gestao_financeira_v1";
+const STORAGE_KEY = "gestao_financeira_v2";
 
 const state = loadState();
+let lastReportData = null;
+
+const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const typeLabels = { residencial: "Fixa Residencial", pessoal: "Fixa Pessoal", extra: "Extra" };
+const incomeLabels = { funcionario: "Funcionário", cliente: "Cliente (PJ)" };
 
 const expenseForm = document.getElementById("expense-form");
 const incomeForm = document.getElementById("income-form");
 const expenseAllocationForm = document.getElementById("expense-allocation-form");
 const incomeAllocationForm = document.getElementById("income-allocation-form");
-
-const expensesList = document.getElementById("expenses-list");
-const incomesList = document.getElementById("incomes-list");
-const expenseAllocationsList = document.getElementById("expense-allocations-list");
-const incomeAllocationsList = document.getElementById("income-allocations-list");
-
-const expenseSelect = document.getElementById("allocation-expense-id");
-const incomeSelect = document.getElementById("allocation-income-id");
 const consolidatedMonth = document.getElementById("consolidated-month");
 const reportBaseMonth = document.getElementById("report-base-month");
-const backupStatus = document.getElementById("backup-status");
 
-const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-
-initializeDates();
-bindEvents();
+wireNavigation();
+wireForms();
+setDefaultDates();
 renderAll();
 
-function initializeDates() {
-  const now = new Date();
-  const monthValue = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  consolidatedMonth.value = monthValue;
-  reportBaseMonth.value = monthValue;
+function wireNavigation() {
+  const navButtons = document.querySelectorAll(".nav-link");
+  const pages = document.querySelectorAll(".page");
+  const pageTitle = document.getElementById("page-title");
+
+  navButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const target = button.dataset.page;
+      navButtons.forEach((item) => item.classList.toggle("active", item === button));
+      pages.forEach((page) => page.classList.toggle("active", page.dataset.page === target));
+      pageTitle.textContent = button.textContent;
+    });
+  });
 }
 
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return { expenses: [], incomes: [], expenseAllocations: [], incomeAllocations: [] };
+function wireForms() {
+  expenseForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const description = document.getElementById("expense-description").value.trim();
+    const type = document.getElementById("expense-type").value;
+    const amount = Number(document.getElementById("expense-amount").value);
+    if (!description || amount <= 0) return;
+
+    state.expenses.push({ id: crypto.randomUUID(), description, type, amount });
+    expenseForm.reset();
+    persistAndRender();
+  });
+
+  incomeForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const sourceType = document.getElementById("income-type").value;
+    const sourceName = document.getElementById("income-source").value.trim();
+    const amount = Number(document.getElementById("income-amount").value);
+    if (!sourceName || amount <= 0) return;
+
+    state.incomes.push({ id: crypto.randomUUID(), sourceType, sourceName, amount });
+    incomeForm.reset();
+    persistAndRender();
+  });
+
+  expenseAllocationForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const payload = {
+      expenseId: document.getElementById("allocation-expense-id").value,
+      startDate: document.getElementById("allocation-expense-date").value,
+      repeat: document.getElementById("allocation-expense-repeat").value,
+    };
+    const editId = document.getElementById("allocation-expense-edit-id").value;
+    if (!payload.expenseId || !payload.startDate) return;
+
+    if (editId) {
+      const current = state.expenseAllocations.find((item) => item.id === editId);
+      if (current) Object.assign(current, payload);
+    } else {
+      state.expenseAllocations.push({ id: crypto.randomUUID(), ...payload });
     }
-    return JSON.parse(raw);
-  } catch {
-    return { expenses: [], incomes: [], expenseAllocations: [], incomeAllocations: [] };
-  }
-}
 
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
+    expenseAllocationForm.reset();
+    document.getElementById("allocation-expense-edit-id").value = "";
+    setDefaultDates();
+    persistAndRender();
+  });
 
-function bindEvents() {
-  expenseForm.addEventListener("submit", onCreateExpense);
-  incomeForm.addEventListener("submit", onCreateIncome);
-  expenseAllocationForm.addEventListener("submit", onSaveExpenseAllocation);
-  incomeAllocationForm.addEventListener("submit", onSaveIncomeAllocation);
+  incomeAllocationForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const payload = {
+      incomeId: document.getElementById("allocation-income-id").value,
+      startDate: document.getElementById("allocation-income-date").value,
+      repeat: document.getElementById("allocation-income-repeat").value,
+    };
+    const editId = document.getElementById("allocation-income-edit-id").value;
+    if (!payload.incomeId || !payload.startDate) return;
 
-  document.getElementById("expense-allocation-cancel").addEventListener("click", () => resetAllocationForm("expense"));
-  document.getElementById("income-allocation-cancel").addEventListener("click", () => resetAllocationForm("income"));
+    if (editId) {
+      const current = state.incomeAllocations.find((item) => item.id === editId);
+      if (current) Object.assign(current, payload);
+    } else {
+      state.incomeAllocations.push({ id: crypto.randomUUID(), ...payload });
+    }
+
+    incomeAllocationForm.reset();
+    document.getElementById("allocation-income-edit-id").value = "";
+    setDefaultDates();
+    persistAndRender();
+  });
+
+  document.getElementById("expense-allocation-cancel").addEventListener("click", () => {
+    expenseAllocationForm.reset();
+    document.getElementById("allocation-expense-edit-id").value = "";
+    setDefaultDates();
+  });
+
+  document.getElementById("income-allocation-cancel").addEventListener("click", () => {
+    incomeAllocationForm.reset();
+    document.getElementById("allocation-income-edit-id").value = "";
+    setDefaultDates();
+  });
 
   document.getElementById("refresh-consolidated").addEventListener("click", renderConsolidated);
-  document.getElementById("generate-report").addEventListener("click", renderReport);
-  document.getElementById("download-data").addEventListener("click", downloadData);
-  document.getElementById("upload-data").addEventListener("change", uploadData);
-}
+  document.getElementById("generate-report").addEventListener("click", generateReport);
+  document.getElementById("export-report-pdf").addEventListener("click", exportReportPdf);
 
-function onCreateExpense(event) {
-  event.preventDefault();
-  const expense = {
-    id: crypto.randomUUID(),
-    description: document.getElementById("expense-description").value.trim(),
-    type: document.getElementById("expense-type").value,
-    amount: Number(document.getElementById("expense-amount").value),
-  };
-  state.expenses.push(expense);
-  saveState();
-  expenseForm.reset();
-  renderAll();
-}
-
-function onCreateIncome(event) {
-  event.preventDefault();
-  const income = {
-    id: crypto.randomUUID(),
-    sourceType: document.getElementById("income-type").value,
-    sourceName: document.getElementById("income-source").value.trim(),
-    amount: Number(document.getElementById("income-amount").value),
-  };
-  state.incomes.push(income);
-  saveState();
-  incomeForm.reset();
-  renderAll();
-}
-
-function onSaveExpenseAllocation(event) {
-  event.preventDefault();
-  const editId = document.getElementById("allocation-expense-edit-id").value;
-  const payload = {
-    id: editId || crypto.randomUUID(),
-    expenseId: document.getElementById("allocation-expense-id").value,
-    startDate: document.getElementById("allocation-expense-date").value,
-    repeat: document.getElementById("allocation-expense-repeat").value,
-  };
-
-  upsertById(state.expenseAllocations, payload);
-  saveState();
-  resetAllocationForm("expense");
-  renderAll();
-}
-
-function onSaveIncomeAllocation(event) {
-  event.preventDefault();
-  const editId = document.getElementById("allocation-income-edit-id").value;
-  const payload = {
-    id: editId || crypto.randomUUID(),
-    incomeId: document.getElementById("allocation-income-id").value,
-    startDate: document.getElementById("allocation-income-date").value,
-    repeat: document.getElementById("allocation-income-repeat").value,
-  };
-
-  upsertById(state.incomeAllocations, payload);
-  saveState();
-  resetAllocationForm("income");
-  renderAll();
-}
-
-function upsertById(collection, item) {
-  const index = collection.findIndex((entry) => entry.id === item.id);
-  if (index >= 0) {
-    collection[index] = item;
-  } else {
-    collection.push(item);
-  }
-}
-
-function resetAllocationForm(kind) {
-  if (kind === "expense") {
-    document.getElementById("allocation-expense-edit-id").value = "";
-    expenseAllocationForm.reset();
-  } else {
-    document.getElementById("allocation-income-edit-id").value = "";
-    incomeAllocationForm.reset();
-  }
+  document.getElementById("download-data").addEventListener("click", downloadDataBackup);
+  document.getElementById("upload-data").addEventListener("change", restoreDataBackup);
 }
 
 function renderAll() {
-  renderExpenseSelect();
-  renderIncomeSelect();
+  renderExpenseOptions();
+  renderIncomeOptions();
   renderExpenses();
   renderIncomes();
   renderExpenseAllocations();
   renderIncomeAllocations();
   renderConsolidated();
-  renderAnalytics();
-  renderReport();
 }
 
-function renderExpenseSelect() {
-  expenseSelect.innerHTML = state.expenses
-    .map((expense) => `<option value="${expense.id}">${expense.description} (${money.format(expense.amount)})</option>`)
-    .join("");
+function renderExpenseOptions() {
+  const select = document.getElementById("allocation-expense-id");
+  select.innerHTML = state.expenses.map((item) => `<option value="${item.id}">${item.description}</option>`).join("");
 }
 
-function renderIncomeSelect() {
-  incomeSelect.innerHTML = state.incomes
-    .map((income) => `<option value="${income.id}">${income.sourceName} (${money.format(income.amount)})</option>`)
-    .join("");
+function renderIncomeOptions() {
+  const select = document.getElementById("allocation-income-id");
+  select.innerHTML = state.incomes.map((item) => `<option value="${item.id}">${item.sourceName}</option>`).join("");
 }
 
 function renderExpenses() {
-  expensesList.innerHTML = state.expenses
-    .map(
-      (expense) => `
+  const list = document.getElementById("expenses-list");
+  list.innerHTML = state.expenses
+    .map((item) => `
       <li>
         <div>
-          <strong>${expense.description}</strong>
-          <div class="meta">${labelExpenseType(expense.type)} • ${money.format(expense.amount)}</div>
+          <strong>${item.description}</strong>
+          <div class="meta">${typeLabels[item.type]} • ${money.format(item.amount)}</div>
         </div>
-        <button class="danger" data-action="delete-expense" data-id="${expense.id}">Excluir</button>
+        <button class="danger" data-delete-expense="${item.id}">Excluir</button>
       </li>
-    `,
-    )
+    `)
     .join("");
 
-  expensesList.querySelectorAll("[data-action='delete-expense']").forEach((button) => {
-    button.addEventListener("click", () => deleteExpense(button.dataset.id));
+  list.querySelectorAll("[data-delete-expense]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const id = button.dataset.deleteExpense;
+      state.expenses = state.expenses.filter((item) => item.id !== id);
+      state.expenseAllocations = state.expenseAllocations.filter((item) => item.expenseId !== id);
+      persistAndRender();
+    });
   });
 }
 
 function renderIncomes() {
-  incomesList.innerHTML = state.incomes
-    .map(
-      (income) => `
+  const list = document.getElementById("incomes-list");
+  list.innerHTML = state.incomes
+    .map((item) => `
       <li>
         <div>
-          <strong>${income.sourceName}</strong>
-          <div class="meta">${income.sourceType === "funcionario" ? "Funcionário" : "Cliente PJ"} • ${money.format(income.amount)}</div>
+          <strong>${item.sourceName}</strong>
+          <div class="meta">${incomeLabels[item.sourceType]} • ${money.format(item.amount)}</div>
         </div>
-        <button class="danger" data-action="delete-income" data-id="${income.id}">Excluir</button>
+        <button class="danger" data-delete-income="${item.id}">Excluir</button>
       </li>
-    `,
-    )
+    `)
     .join("");
 
-  incomesList.querySelectorAll("[data-action='delete-income']").forEach((button) => {
-    button.addEventListener("click", () => deleteIncome(button.dataset.id));
+  list.querySelectorAll("[data-delete-income]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const id = button.dataset.deleteIncome;
+      state.incomes = state.incomes.filter((item) => item.id !== id);
+      state.incomeAllocations = state.incomeAllocations.filter((item) => item.incomeId !== id);
+      persistAndRender();
+    });
   });
 }
 
 function renderExpenseAllocations() {
-  expenseAllocationsList.innerHTML = state.expenseAllocations
+  const list = document.getElementById("expense-allocations-list");
+  list.innerHTML = state.expenseAllocations
     .map((allocation) => {
       const expense = state.expenses.find((item) => item.id === allocation.expenseId);
       if (!expense) return "";
       return `
-      <li>
-        <div>
-          <strong>${expense.description}</strong>
-          <div class="meta">Início: ${formatDate(allocation.startDate)} • ${allocation.repeat}</div>
-        </div>
-        <div class="actions">
-          <button data-action="edit-expense-allocation" data-id="${allocation.id}">Alterar</button>
-          <button class="danger" data-action="delete-expense-allocation" data-id="${allocation.id}">Excluir</button>
-        </div>
-      </li>`;
+        <li>
+          <div>
+            <strong>${expense.description}</strong>
+            <div class="meta">${formatDate(allocation.startDate)} • ${allocation.repeat}</div>
+          </div>
+          <div class="actions">
+            <button class="secondary" data-edit-expense-allocation="${allocation.id}">Alterar</button>
+            <button class="danger" data-delete-expense-allocation="${allocation.id}">Excluir</button>
+          </div>
+        </li>
+      `;
     })
     .join("");
 
-  expenseAllocationsList.querySelectorAll("[data-action='delete-expense-allocation']").forEach((button) => {
-    button.addEventListener("click", () => deleteExpenseAllocation(button.dataset.id));
+  list.querySelectorAll("[data-delete-expense-allocation]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const id = button.dataset.deleteExpenseAllocation;
+      state.expenseAllocations = state.expenseAllocations.filter((item) => item.id !== id);
+      persistAndRender();
+    });
   });
 
-  expenseAllocationsList.querySelectorAll("[data-action='edit-expense-allocation']").forEach((button) => {
-    button.addEventListener("click", () => editExpenseAllocation(button.dataset.id));
+  list.querySelectorAll("[data-edit-expense-allocation]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const item = state.expenseAllocations.find((entry) => entry.id === button.dataset.editExpenseAllocation);
+      if (!item) return;
+      document.getElementById("allocation-expense-edit-id").value = item.id;
+      document.getElementById("allocation-expense-id").value = item.expenseId;
+      document.getElementById("allocation-expense-date").value = item.startDate;
+      document.getElementById("allocation-expense-repeat").value = item.repeat;
+    });
   });
 }
 
 function renderIncomeAllocations() {
-  incomeAllocationsList.innerHTML = state.incomeAllocations
+  const list = document.getElementById("income-allocations-list");
+  list.innerHTML = state.incomeAllocations
     .map((allocation) => {
       const income = state.incomes.find((item) => item.id === allocation.incomeId);
       if (!income) return "";
       return `
-      <li>
-        <div>
-          <strong>${income.sourceName}</strong>
-          <div class="meta">Início: ${formatDate(allocation.startDate)} • ${allocation.repeat}</div>
-        </div>
-        <div class="actions">
-          <button data-action="edit-income-allocation" data-id="${allocation.id}">Alterar</button>
-          <button class="danger" data-action="delete-income-allocation" data-id="${allocation.id}">Excluir</button>
-        </div>
-      </li>`;
+        <li>
+          <div>
+            <strong>${income.sourceName}</strong>
+            <div class="meta">${formatDate(allocation.startDate)} • ${allocation.repeat}</div>
+          </div>
+          <div class="actions">
+            <button class="secondary" data-edit-income-allocation="${allocation.id}">Alterar</button>
+            <button class="danger" data-delete-income-allocation="${allocation.id}">Excluir</button>
+          </div>
+        </li>
+      `;
     })
     .join("");
 
-  incomeAllocationsList.querySelectorAll("[data-action='delete-income-allocation']").forEach((button) => {
-    button.addEventListener("click", () => deleteIncomeAllocation(button.dataset.id));
+  list.querySelectorAll("[data-delete-income-allocation]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const id = button.dataset.deleteIncomeAllocation;
+      state.incomeAllocations = state.incomeAllocations.filter((item) => item.id !== id);
+      persistAndRender();
+    });
   });
 
-  incomeAllocationsList.querySelectorAll("[data-action='edit-income-allocation']").forEach((button) => {
-    button.addEventListener("click", () => editIncomeAllocation(button.dataset.id));
+  list.querySelectorAll("[data-edit-income-allocation]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const item = state.incomeAllocations.find((entry) => entry.id === button.dataset.editIncomeAllocation);
+      if (!item) return;
+      document.getElementById("allocation-income-edit-id").value = item.id;
+      document.getElementById("allocation-income-id").value = item.incomeId;
+      document.getElementById("allocation-income-date").value = item.startDate;
+      document.getElementById("allocation-income-repeat").value = item.repeat;
+    });
   });
-}
-
-function deleteExpense(id) {
-  state.expenses = state.expenses.filter((item) => item.id !== id);
-  state.expenseAllocations = state.expenseAllocations.filter((item) => item.expenseId !== id);
-  saveState();
-  renderAll();
-}
-
-function deleteIncome(id) {
-  state.incomes = state.incomes.filter((item) => item.id !== id);
-  state.incomeAllocations = state.incomeAllocations.filter((item) => item.incomeId !== id);
-  saveState();
-  renderAll();
-}
-
-function editExpenseAllocation(id) {
-  const item = state.expenseAllocations.find((entry) => entry.id === id);
-  if (!item) return;
-  document.getElementById("allocation-expense-edit-id").value = item.id;
-  document.getElementById("allocation-expense-id").value = item.expenseId;
-  document.getElementById("allocation-expense-date").value = item.startDate;
-  document.getElementById("allocation-expense-repeat").value = item.repeat;
-}
-
-function editIncomeAllocation(id) {
-  const item = state.incomeAllocations.find((entry) => entry.id === id);
-  if (!item) return;
-  document.getElementById("allocation-income-edit-id").value = item.id;
-  document.getElementById("allocation-income-id").value = item.incomeId;
-  document.getElementById("allocation-income-date").value = item.startDate;
-  document.getElementById("allocation-income-repeat").value = item.repeat;
-}
-
-function deleteExpenseAllocation(id) {
-  state.expenseAllocations = state.expenseAllocations.filter((item) => item.id !== id);
-  saveState();
-  renderAll();
-}
-
-function deleteIncomeAllocation(id) {
-  state.incomeAllocations = state.incomeAllocations.filter((item) => item.id !== id);
-  saveState();
-  renderAll();
 }
 
 function renderConsolidated() {
@@ -313,180 +283,203 @@ function renderConsolidated() {
   const margin = totalIncomes > 0 ? (profit / totalIncomes) * 100 : 0;
 
   document.getElementById("consolidated-result").innerHTML = `
-    <div class="metrics">
-      <div class="metric"><strong>Receitas</strong><br/>${money.format(totalIncomes)}</div>
-      <div class="metric"><strong>Despesas</strong><br/>${money.format(totalExpenses)}</div>
-      <div class="metric"><strong>Rentabilidade</strong><br/>${money.format(profit)} (${margin.toFixed(2)}%)</div>
-    </div>
+    <div class="metric"><span>Receitas</span><strong>${money.format(totalIncomes)}</strong></div>
+    <div class="metric"><span>Despesas</span><strong>${money.format(totalExpenses)}</strong></div>
+    <div class="metric"><span>Rentabilidade</span><strong>${money.format(profit)} (${margin.toFixed(2)}%)</strong></div>
   `;
-}
 
-function totalInMonth(kind, year, month) {
-  if (!year || !month) return 0;
-  const allocations = kind === "expense" ? state.expenseAllocations : state.incomeAllocations;
-  const data = kind === "expense" ? state.expenses : state.incomes;
-
-  return allocations.reduce((sum, allocation) => {
-    const occurrences = calculateOccurrencesInMonth(allocation.startDate, allocation.repeat, year, month);
-    const valueRef = data.find((item) => item.id === (kind === "expense" ? allocation.expenseId : allocation.incomeId));
-    if (!valueRef) return sum;
-    return sum + valueRef.amount * occurrences;
-  }, 0);
-}
-
-function calculateOccurrencesInMonth(startDate, repeat, year, month) {
-  const start = new Date(`${startDate}T00:00:00`);
-  const monthStart = new Date(year, month - 1, 1);
-  const monthEnd = new Date(year, month, 0);
-  if (start > monthEnd) return 0;
-
-  if (repeat === "mensal") {
-    return 1;
-  }
-
-  let count = 0;
-  let cursor = new Date(start);
-  while (cursor <= monthEnd) {
-    if (cursor >= monthStart) {
-      count += 1;
-    }
-    cursor.setDate(cursor.getDate() + 14);
-  }
-  return count;
-}
-
-function renderAnalytics() {
-  const groupedExpenses = state.expenses.reduce((acc, item) => {
-    acc[item.type] = (acc[item.type] || 0) + item.amount;
-    return acc;
-  }, {});
-
-  const groupedIncome = state.incomes.reduce((acc, item) => {
-    acc[item.sourceType] = (acc[item.sourceType] || 0) + item.amount;
-    return acc;
-  }, {});
+  const topExpenses = [...state.expenses]
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 3)
+    .map((item) => `<li>${item.description}: ${money.format(item.amount)}</li>`)
+    .join("");
 
   document.getElementById("analytics-output").innerHTML = `
-    <div class="metrics">
-      <div class="metric">
-        <strong>Despesas por tipo</strong>
-        <ul>
-          <li>Fixa Residencial: ${money.format(groupedExpenses.residencial || 0)}</li>
-          <li>Fixa Pessoal: ${money.format(groupedExpenses.pessoal || 0)}</li>
-          <li>Extra: ${money.format(groupedExpenses.extra || 0)}</li>
-        </ul>
-      </div>
-      <div class="metric">
-        <strong>Receitas por origem</strong>
-        <ul>
-          <li>Funcionário: ${money.format(groupedIncome.funcionario || 0)}</li>
-          <li>Cliente PJ: ${money.format(groupedIncome.cliente || 0)}</li>
-        </ul>
-      </div>
-    </div>
+    <h4>Visão analítica rápida</h4>
+    <p>Total de despesas cadastradas: <strong>${state.expenses.length}</strong></p>
+    <p>Total de receitas cadastradas: <strong>${state.incomes.length}</strong></p>
+    <p>Principais despesas:</p>
+    <ul>${topExpenses || "<li>Nenhuma despesa cadastrada.</li>"}</ul>
   `;
 }
 
-function renderReport() {
+function generateReport() {
   const period = document.getElementById("report-period").value;
-  const [year, month] = reportBaseMonth.value.split("-").map(Number);
-  if (!year || !month) return;
+  const [baseYear, baseMonth] = reportBaseMonth.value.split("-").map(Number);
+  const monthsCount = { mensal: 1, trimestral: 3, semestral: 6, anual: 12 }[period];
 
-  const months = periodToMonths(period);
-  const snapshots = [];
-
-  for (let i = 0; i < months; i += 1) {
-    const date = new Date(year, month - 1 + i, 1);
-    const currentYear = date.getFullYear();
-    const currentMonth = date.getMonth() + 1;
-    const incomes = totalInMonth("income", currentYear, currentMonth);
-    const expenses = totalInMonth("expense", currentYear, currentMonth);
-    snapshots.push({
-      label: `${String(currentMonth).padStart(2, "0")}/${currentYear}`,
-      incomes,
-      expenses,
-      profit: incomes - expenses,
-    });
+  const rows = [];
+  for (let i = 0; i < monthsCount; i += 1) {
+    const date = new Date(baseYear, baseMonth - 1 - i, 1);
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const expenses = totalInMonth("expense", year, month);
+    const incomes = totalInMonth("income", year, month);
+    rows.push({ year, month, expenses, incomes, result: incomes - expenses });
   }
 
-  const totalIncome = snapshots.reduce((sum, entry) => sum + entry.incomes, 0);
-  const totalExpense = snapshots.reduce((sum, entry) => sum + entry.expenses, 0);
-  const totalProfit = totalIncome - totalExpense;
+  rows.reverse();
+  lastReportData = { period, rows };
+
+  const tableRows = rows
+    .map(
+      (row) => `
+      <tr>
+        <td>${String(row.month).padStart(2, "0")}/${row.year}</td>
+        <td>${money.format(row.incomes)}</td>
+        <td>${money.format(row.expenses)}</td>
+        <td>${money.format(row.result)}</td>
+      </tr>
+    `,
+    )
+    .join("");
 
   document.getElementById("report-output").innerHTML = `
-    <p><strong>Resumo ${period}:</strong> Receitas ${money.format(totalIncome)} | Despesas ${money.format(totalExpense)} | Rentabilidade ${money.format(totalProfit)}</p>
-    <table>
-      <thead><tr><th>Mês</th><th>Receitas</th><th>Despesas</th><th>Rentabilidade</th></tr></thead>
-      <tbody>
-        ${snapshots
-          .map(
-            (entry) => `<tr><td>${entry.label}</td><td>${money.format(entry.incomes)}</td><td>${money.format(entry.expenses)}</td><td>${money.format(entry.profit)}</td></tr>`,
-          )
-          .join("")}
-      </tbody>
+    <table class="report-table">
+      <thead><tr><th>Mês</th><th>Receitas</th><th>Despesas</th><th>Resultado</th></tr></thead>
+      <tbody>${tableRows}</tbody>
     </table>
   `;
 }
 
-function periodToMonths(period) {
-  if (period === "mensal") return 1;
-  if (period === "trimestral") return 3;
-  if (period === "semestral") return 6;
-  return 12;
+function exportReportPdf() {
+  if (!lastReportData || !window.jspdf) {
+    alert("Gere o relatório antes de exportar para PDF.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(16);
+  doc.text("Relatório Analítico Financeiro", 14, 16);
+  doc.setFontSize(11);
+  doc.text(`Período: ${lastReportData.period}`, 14, 24);
+
+  let y = 34;
+  doc.text("Mês", 14, y);
+  doc.text("Receitas", 55, y);
+  doc.text("Despesas", 105, y);
+  doc.text("Resultado", 155, y);
+  y += 8;
+
+  lastReportData.rows.forEach((row) => {
+    const monthLabel = `${String(row.month).padStart(2, "0")}/${row.year}`;
+    doc.text(monthLabel, 14, y);
+    doc.text(money.format(row.incomes), 55, y);
+    doc.text(money.format(row.expenses), 105, y);
+    doc.text(money.format(row.result), 155, y);
+    y += 8;
+    if (y > 280) {
+      doc.addPage();
+      y = 20;
+    }
+  });
+
+  const dateTag = new Date().toISOString().slice(0, 10);
+  doc.save(`relatorio-analitico-${dateTag}.pdf`);
 }
 
-function formatDate(dateText) {
-  const [year, month, day] = dateText.split("-");
-  return `${day}/${month}/${year}`;
+function totalInMonth(kind, year, month) {
+  const allocations = kind === "expense" ? state.expenseAllocations : state.incomeAllocations;
+  const items = kind === "expense" ? state.expenses : state.incomes;
+
+  return allocations.reduce((acc, allocation) => {
+    const targetDate = new Date(year, month - 1, 1);
+    const startDate = new Date(`${allocation.startDate}T00:00:00`);
+    if (startDate > targetDate) return acc;
+
+    const itemId = kind === "expense" ? allocation.expenseId : allocation.incomeId;
+    const item = items.find((entry) => entry.id === itemId);
+    if (!item) return acc;
+
+    const multiplier = allocation.repeat === "quinzenal" ? 2 : 1;
+    return acc + item.amount * multiplier;
+  }, 0);
 }
 
-function labelExpenseType(type) {
-  if (type === "residencial") return "Fixa Residencial";
-  if (type === "pessoal") return "Fixa Pessoal";
-  return "Extra";
-}
-
-
-function downloadData() {
-  const payload = {
-    exportedAt: new Date().toISOString(),
-    data: state,
-  };
-
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+function downloadDataBackup() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  const datePart = new Date().toISOString().slice(0, 10);
-  link.href = url;
-  link.download = `gestao-financeira-backup-${datePart}.json`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  const anchor = document.createElement("a");
+  const stamp = new Date().toISOString().slice(0, 10);
+  anchor.href = url;
+  anchor.download = `gestao-financeira-backup-${stamp}.json`;
+  anchor.click();
   URL.revokeObjectURL(url);
-  backupStatus.textContent = "Backup gerado com sucesso.";
+  setBackupStatus("Backup baixado com sucesso.", false);
 }
 
-function uploadData(event) {
-  const file = event.target.files[0];
+function restoreDataBackup(event) {
+  const file = event.target.files?.[0];
   if (!file) return;
 
   const reader = new FileReader();
   reader.onload = () => {
     try {
-      const payload = JSON.parse(String(reader.result));
-      const incoming = payload.data || payload;
+      const parsed = JSON.parse(reader.result);
+      if (!parsed.expenses || !parsed.incomes || !parsed.expenseAllocations || !parsed.incomeAllocations) {
+        throw new Error("Estrutura inválida");
+      }
 
-      state.expenses = Array.isArray(incoming.expenses) ? incoming.expenses : [];
-      state.incomes = Array.isArray(incoming.incomes) ? incoming.incomes : [];
-      state.expenseAllocations = Array.isArray(incoming.expenseAllocations) ? incoming.expenseAllocations : [];
-      state.incomeAllocations = Array.isArray(incoming.incomeAllocations) ? incoming.incomeAllocations : [];
-
-      saveState();
-      renderAll();
-      backupStatus.textContent = "Dados restaurados com sucesso.";
-    } catch {
-      backupStatus.textContent = "Arquivo inválido. Selecione um backup JSON gerado pelo sistema.";
+      state.expenses = parsed.expenses;
+      state.incomes = parsed.incomes;
+      state.expenseAllocations = parsed.expenseAllocations;
+      state.incomeAllocations = parsed.incomeAllocations;
+      persistAndRender();
+      setBackupStatus("Backup restaurado com sucesso.", false);
+    } catch (error) {
+      setBackupStatus("Falha ao restaurar: arquivo inválido.", true);
     }
   };
+
   reader.readAsText(file);
+}
+
+function setBackupStatus(message, isError) {
+  const element = document.getElementById("backup-status");
+  element.textContent = message;
+  element.style.color = isError ? "#b91c1c" : "#166534";
+}
+
+function setDefaultDates() {
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const today = new Date().toISOString().slice(0, 10);
+  if (!consolidatedMonth.value) consolidatedMonth.value = currentMonth;
+  if (!reportBaseMonth.value) reportBaseMonth.value = currentMonth;
+  if (!document.getElementById("allocation-expense-date").value) {
+    document.getElementById("allocation-expense-date").value = today;
+  }
+  if (!document.getElementById("allocation-income-date").value) {
+    document.getElementById("allocation-income-date").value = today;
+  }
+}
+
+function formatDate(value) {
+  if (!value) return "-";
+  const [year, month, day] = value.split("-");
+  return `${day}/${month}/${year}`;
+}
+
+function persistAndRender() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  renderAll();
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      return { expenses: [], incomes: [], expenseAllocations: [], incomeAllocations: [] };
+    }
+
+    const parsed = JSON.parse(raw);
+    return {
+      expenses: parsed.expenses || [],
+      incomes: parsed.incomes || [],
+      expenseAllocations: parsed.expenseAllocations || [],
+      incomeAllocations: parsed.incomeAllocations || [],
+    };
+  } catch (error) {
+    return { expenses: [], incomes: [], expenseAllocations: [], incomeAllocations: [] };
+  }
 }
