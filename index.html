@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestão Financeira Residencial e Pessoal</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Gestão Financeira</h1>
+    <p>Cadastre, aloque e acompanhe despesas e receitas com análise de rentabilidade.</p>
+  </header>
+
+  <main>
+    <section class="card two-columns">
+      <div>
+        <h2>Cadastrar Despesa</h2>
+        <form id="expense-form">
+          <label>Descrição<input required id="expense-description" type="text" /></label>
+          <label>Tipo
+            <select id="expense-type" required>
+              <option value="residencial">Fixa Residencial</option>
+              <option value="pessoal">Fixa Pessoal</option>
+              <option value="extra">Extra</option>
+            </select>
+          </label>
+          <label>Valor (R$)<input required id="expense-amount" type="number" min="0" step="0.01" /></label>
+          <button type="submit">Salvar Despesa</button>
+        </form>
+      </div>
+
+      <div>
+        <h2>Cadastrar Receita</h2>
+        <form id="income-form">
+          <label>Origem
+            <select id="income-type" required>
+              <option value="funcionario">Funcionário (Empresa)</option>
+              <option value="cliente">Cliente (Pessoa Jurídica)</option>
+            </select>
+          </label>
+          <label>Nome da Empresa / Cliente<input required id="income-source" type="text" /></label>
+          <label>Valor (R$)<input required id="income-amount" type="number" min="0" step="0.01" /></label>
+          <button type="submit">Salvar Receita</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="card two-columns">
+      <div>
+        <h2>Alocar Despesa</h2>
+        <form id="expense-allocation-form">
+          <label>Despesa
+            <select id="allocation-expense-id" required></select>
+          </label>
+          <label>Data de início<input id="allocation-expense-date" type="date" required /></label>
+          <label>Repetição
+            <select id="allocation-expense-repeat" required>
+              <option value="mensal">Mensal</option>
+              <option value="quinzenal">Quinzenal</option>
+            </select>
+          </label>
+          <input type="hidden" id="allocation-expense-edit-id" />
+          <div class="actions">
+            <button type="submit">Salvar Alocação</button>
+            <button type="button" id="expense-allocation-cancel" class="secondary">Cancelar edição</button>
+          </div>
+        </form>
+      </div>
+
+      <div>
+        <h2>Alocar Receita</h2>
+        <form id="income-allocation-form">
+          <label>Receita
+            <select id="allocation-income-id" required></select>
+          </label>
+          <label>Data de início<input id="allocation-income-date" type="date" required /></label>
+          <label>Repetição
+            <select id="allocation-income-repeat" required>
+              <option value="mensal">Mensal</option>
+              <option value="quinzenal">Quinzenal</option>
+            </select>
+          </label>
+          <input type="hidden" id="allocation-income-edit-id" />
+          <div class="actions">
+            <button type="submit">Salvar Alocação</button>
+            <button type="button" id="income-allocation-cancel" class="secondary">Cancelar edição</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="card two-columns">
+      <div>
+        <h2>Despesas Cadastradas</h2>
+        <ul id="expenses-list" class="list"></ul>
+      </div>
+      <div>
+        <h2>Receitas Cadastradas</h2>
+        <ul id="incomes-list" class="list"></ul>
+      </div>
+    </section>
+
+    <section class="card two-columns">
+      <div>
+        <h2>Alocações de Despesas</h2>
+        <ul id="expense-allocations-list" class="list"></ul>
+      </div>
+      <div>
+        <h2>Alocações de Receitas</h2>
+        <ul id="income-allocations-list" class="list"></ul>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Consolidado (Despesas x Receitas)</h2>
+      <label>Mês de referência<input type="month" id="consolidated-month" /></label>
+      <button id="refresh-consolidated">Atualizar Consolidado</button>
+      <div id="consolidated-result" class="highlight"></div>
+    </section>
+
+    <section class="card">
+      <h2>Módulo Analítico</h2>
+      <div id="analytics-output"></div>
+    </section>
+
+
+    <section class="card">
+      <h2>Backup de Dados</h2>
+      <p>Baixe uma cópia dos seus dados para guardar no computador.</p>
+      <div class="actions">
+        <button id="download-data">Baixar dados (.json)</button>
+        <label class="file-label">Restaurar dados
+          <input id="upload-data" type="file" accept="application/json" />
+        </label>
+      </div>
+      <small id="backup-status" class="meta-text"></small>
+    </section>
+
+    <section class="card">
+      <h2>Relatório Analítico</h2>
+      <label>Período
+        <select id="report-period">
+          <option value="mensal">Mensal</option>
+          <option value="trimestral">Trimestral</option>
+          <option value="semestral">Semestral</option>
+          <option value="anual">Anual</option>
+        </select>
+      </label>
+      <label>Data base<input type="month" id="report-base-month" /></label>
+      <button id="generate-report">Gerar Relatório</button>
+      <div id="report-output"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
