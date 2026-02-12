@@ -36,11 +36,11 @@
             <form id="expense-form" class="form-grid">
               <label>Descrição<input required id="expense-description" type="text" /></label>
               <label>Tipo
-                <select id="expense-type" required>
-                  <option value="residencial">Fixa Residencial</option>
-                  <option value="pessoal">Fixa Pessoal</option>
-                  <option value="extra">Extra</option>
-                </select>
+                <div class="inline-add">
+                  <select id="expense-type" required></select>
+                  <input id="new-expense-type" type="text" placeholder="Novo tipo" />
+                  <button id="add-expense-type" type="button" class="secondary">Cadastrar tipo</button>
+                </div>
               </label>
               <label>Valor (R$)<input required id="expense-amount" type="number" min="0" step="0.01" /></label>
               <button type="submit">Salvar Despesa</button>
@@ -51,10 +51,11 @@
             <h3>Cadastrar Receita</h3>
             <form id="income-form" class="form-grid">
               <label>Origem
-                <select id="income-type" required>
-                  <option value="funcionario">Funcionário (Empresa)</option>
-                  <option value="cliente">Cliente (Pessoa Jurídica)</option>
-                </select>
+                <div class="inline-add">
+                  <select id="income-type" required></select>
+                  <input id="new-income-origin" type="text" placeholder="Nova origem" />
+                  <button id="add-income-origin" type="button" class="secondary">Cadastrar origem</button>
+                </div>
               </label>
               <label>Empresa / Cliente<input required id="income-source" type="text" /></label>
               <label>Valor (R$)<input required id="income-amount" type="number" min="0" step="0.01" /></label>

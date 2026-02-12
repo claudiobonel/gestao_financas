@@ -1,11 +1,14 @@
 const STORAGE_KEY = "gestao_financeira_v2";
 
 const state = loadState();
+ensureCatalogDefaults(state);
 let lastReportData = null;
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-const typeLabels = { residencial: "Fixa Residencial", pessoal: "Fixa Pessoal", extra: "Extra" };
-const incomeLabels = { funcionario: "Funcionário", cliente: "Cliente (PJ)" };
+const DEFAULT_EXPENSE_TYPES = ["Fixa Residencial", "Fixa Pessoal", "Extra"];
+const DEFAULT_INCOME_ORIGINS = ["Funcionário (Empresa)", "Cliente (Pessoa Jurídica)"];
+const legacyExpenseLabels = { residencial: "Fixa Residencial", pessoal: "Fixa Pessoal", extra: "Extra" };
+const legacyIncomeLabels = { funcionario: "Funcionário (Empresa)", cliente: "Cliente (Pessoa Jurídica)" };
 
 const expenseForm = document.getElementById("expense-form");
 const incomeForm = document.getElementById("income-form");
@@ -13,6 +16,10 @@ const expenseAllocationForm = document.getElementById("expense-allocation-form")
 const incomeAllocationForm = document.getElementById("income-allocation-form");
 const reportBaseMonth = document.getElementById("report-base-month");
 const reportBaseHelp = document.getElementById("report-base-help");
+const expenseTypeSelect = document.getElementById("expense-type");
+const incomeTypeSelect = document.getElementById("income-type");
+const newExpenseTypeInput = document.getElementById("new-expense-type");
+const newIncomeOriginInput = document.getElementById("new-income-origin");
 
 wireNavigation();
 wireForms();
@@ -117,6 +124,40 @@ function wireForms() {
     setDefaultDates();
   });
 
+  document.getElementById("add-expense-type").addEventListener("click", () => {
+    const label = newExpenseTypeInput.value.trim();
+    if (!label) return;
+
+    const exists = state.expenseTypes.some((item) => item.label.toLowerCase() === label.toLowerCase());
+    if (exists) {
+      alert("Esse tipo de despesa já existe.");
+      return;
+    }
+
+    const created = { id: crypto.randomUUID(), label };
+    state.expenseTypes.push(created);
+    newExpenseTypeInput.value = "";
+    persistAndRender();
+    expenseTypeSelect.value = created.id;
+  });
+
+  document.getElementById("add-income-origin").addEventListener("click", () => {
+    const label = newIncomeOriginInput.value.trim();
+    if (!label) return;
+
+    const exists = state.incomeOrigins.some((item) => item.label.toLowerCase() === label.toLowerCase());
+    if (exists) {
+      alert("Essa origem de receita já existe.");
+      return;
+    }
+
+    const created = { id: crypto.randomUUID(), label };
+    state.incomeOrigins.push(created);
+    newIncomeOriginInput.value = "";
+    persistAndRender();
+    incomeTypeSelect.value = created.id;
+  });
+
   document.getElementById("generate-report").addEventListener("click", generateReport);
   document.getElementById("report-period").addEventListener("change", updateReportBaseInput);
   document.getElementById("export-report-pdf").addEventListener("click", exportReportPdf);
@@ -128,12 +169,34 @@ function wireForms() {
 }
 
 function renderAll() {
+  renderExpenseTypeOptions();
+  renderIncomeOriginOptions();
   renderExpenseOptions();
   renderIncomeOptions();
   renderExpenses();
   renderIncomes();
   renderExpenseAllocations();
   renderIncomeAllocations();
+}
+
+function renderExpenseTypeOptions() {
+  expenseTypeSelect.innerHTML = state.expenseTypes
+    .map((item) => `<option value="${item.id}">${item.label}</option>`)
+    .join("");
+}
+
+function renderIncomeOriginOptions() {
+  incomeTypeSelect.innerHTML = state.incomeOrigins
+    .map((item) => `<option value="${item.id}">${item.label}</option>`)
+    .join("");
+}
+
+function getExpenseTypeLabel(typeId) {
+  return state.expenseTypes.find((item) => item.id === typeId)?.label || legacyExpenseLabels[typeId] || typeId;
+}
+
+function getIncomeOriginLabel(originId) {
+  return state.incomeOrigins.find((item) => item.id === originId)?.label || legacyIncomeLabels[originId] || originId;
 }
 
 function renderExpenseOptions() {
@@ -153,7 +216,7 @@ function renderExpenses() {
       <li>
         <div>
           <strong>${item.description}</strong>
-          <div class="meta">${typeLabels[item.type]} • ${money.format(item.amount)}</div>
+          <div class="meta">${getExpenseTypeLabel(item.type)} • ${money.format(item.amount)}</div>
         </div>
         <button class="danger" data-delete-expense="${item.id}">Excluir</button>
       </li>
@@ -177,7 +240,7 @@ function renderIncomes() {
       <li>
         <div>
           <strong>${item.sourceName}</strong>
-          <div class="meta">${incomeLabels[item.sourceType]} • ${money.format(item.amount)}</div>
+          <div class="meta">${getIncomeOriginLabel(item.sourceType)} • ${money.format(item.amount)}</div>
         </div>
         <button class="danger" data-delete-income="${item.id}">Excluir</button>
       </li>
@@ -493,6 +556,9 @@ function restoreDataBackup(event) {
       state.incomes = parsed.incomes;
       state.expenseAllocations = parsed.expenseAllocations;
       state.incomeAllocations = parsed.incomeAllocations;
+      state.expenseTypes = parsed.expenseTypes || [];
+      state.incomeOrigins = parsed.incomeOrigins || [];
+      ensureCatalogDefaults(state);
       persistAndRender();
       setBackupStatus("Backup restaurado com sucesso.", false);
     } catch (error) {
@@ -535,7 +601,7 @@ function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      return { expenses: [], incomes: [], expenseAllocations: [], incomeAllocations: [] };
+      return { expenses: [], incomes: [], expenseAllocations: [], incomeAllocations: [], expenseTypes: [], incomeOrigins: [] };
     }
 
     const parsed = JSON.parse(raw);
@@ -544,8 +610,24 @@ function loadState() {
       incomes: parsed.incomes || [],
       expenseAllocations: parsed.expenseAllocations || [],
       incomeAllocations: parsed.incomeAllocations || [],
+      expenseTypes: parsed.expenseTypes || [],
+      incomeOrigins: parsed.incomeOrigins || [],
     };
   } catch (error) {
-    return { expenses: [], incomes: [], expenseAllocations: [], incomeAllocations: [] };
+    return { expenses: [], incomes: [], expenseAllocations: [], incomeAllocations: [], expenseTypes: [], incomeOrigins: [] };
+  }
+}
+
+
+function ensureCatalogDefaults(stateObject) {
+  if (!Array.isArray(stateObject.expenseTypes)) stateObject.expenseTypes = [];
+  if (!Array.isArray(stateObject.incomeOrigins)) stateObject.incomeOrigins = [];
+
+  if (stateObject.expenseTypes.length === 0) {
+    stateObject.expenseTypes = DEFAULT_EXPENSE_TYPES.map((label) => ({ id: crypto.randomUUID(), label }));
+  }
+
+  if (stateObject.incomeOrigins.length === 0) {
+    stateObject.incomeOrigins = DEFAULT_INCOME_ORIGINS.map((label) => ({ id: crypto.randomUUID(), label }));
   }
 }
