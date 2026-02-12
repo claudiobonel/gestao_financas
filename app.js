@@ -1,14 +1,15 @@
 const STORAGE_KEY = "gestao_financeira_v2";
 
+const DEFAULT_EXPENSE_TYPES = ["Fixa Residencial", "Fixa Pessoal", "Extra"];
+const DEFAULT_INCOME_ORIGINS = ["Funcionário (Empresa)", "Cliente (Pessoa Jurídica)"];
+const legacyExpenseLabels = { residencial: "Fixa Residencial", pessoal: "Fixa Pessoal", extra: "Extra" };
+const legacyIncomeLabels = { funcionario: "Funcionário (Empresa)", cliente: "Cliente (Pessoa Jurídica)" };
+
 const state = loadState();
 ensureCatalogDefaults(state);
 let lastReportData = null;
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-const DEFAULT_EXPENSE_TYPES = ["Fixa Residencial", "Fixa Pessoal", "Extra"];
-const DEFAULT_INCOME_ORIGINS = ["Funcionário (Empresa)", "Cliente (Pessoa Jurídica)"];
-const legacyExpenseLabels = { residencial: "Fixa Residencial", pessoal: "Fixa Pessoal", extra: "Extra" };
-const legacyIncomeLabels = { funcionario: "Funcionário (Empresa)", cliente: "Cliente (Pessoa Jurídica)" };
 
 const expenseForm = document.getElementById("expense-form");
 const incomeForm = document.getElementById("income-form");
@@ -24,7 +25,7 @@ const newIncomeOriginInput = document.getElementById("new-income-origin");
 wireNavigation();
 wireForms();
 setDefaultDates();
-renderAll();
+persistAndRender();
 
 function wireNavigation() {
   const navButtons = document.querySelectorAll(".nav-link");
