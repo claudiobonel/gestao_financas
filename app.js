@@ -324,7 +324,22 @@ function generateReport() {
     rows.push({ year, month, expenses, incomes, result: incomes - expenses });
   }
 
-  lastReportData = { period, rows };
+  const totals = rows.reduce(
+    (acc, row) => {
+      acc.incomes += row.incomes;
+      acc.expenses += row.expenses;
+      return acc;
+    },
+    { incomes: 0, expenses: 0 },
+  );
+  const difference = totals.incomes - totals.expenses;
+  const profitability = totals.incomes > 0 ? (difference / totals.incomes) * 100 : 0;
+
+  lastReportData = {
+    period,
+    rows,
+    summary: { totalIncomes: totals.incomes, totalExpenses: totals.expenses, difference, profitability },
+  };
 
   const tableRows = rows
     .map(
@@ -344,6 +359,12 @@ function generateReport() {
       <thead><tr><th>Mês</th><th>Receitas</th><th>Despesas</th><th>Resultado</th></tr></thead>
       <tbody>${tableRows}</tbody>
     </table>
+    <div class="metrics report-summary">
+      <div class="metric"><span>Total Receitas</span><strong>${money.format(totals.incomes)}</strong></div>
+      <div class="metric"><span>Total Despesas</span><strong>${money.format(totals.expenses)}</strong></div>
+      <div class="metric"><span>Diferença</span><strong>${money.format(difference)}</strong></div>
+      <div class="metric"><span>Rentabilidade</span><strong>${profitability.toFixed(2)}%</strong></div>
+    </div>
   `;
 }
 
@@ -438,6 +459,16 @@ function exportReportPdf() {
       y = 20;
     }
   });
+
+  const summary = lastReportData.summary;
+  y += 4;
+  doc.text(`Total Receitas: ${money.format(summary.totalIncomes)}`, 14, y);
+  y += 8;
+  doc.text(`Total Despesas: ${money.format(summary.totalExpenses)}`, 14, y);
+  y += 8;
+  doc.text(`Diferença: ${money.format(summary.difference)}`, 14, y);
+  y += 8;
+  doc.text(`Rentabilidade: ${summary.profitability.toFixed(2)}%`, 14, y);
 
   const dateTag = new Date().toISOString().slice(0, 10);
   doc.save(`relatorio-analitico-${dateTag}.pdf`);
