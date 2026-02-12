@@ -11,7 +11,6 @@ const expenseForm = document.getElementById("expense-form");
 const incomeForm = document.getElementById("income-form");
 const expenseAllocationForm = document.getElementById("expense-allocation-form");
 const incomeAllocationForm = document.getElementById("income-allocation-form");
-const consolidatedMonth = document.getElementById("consolidated-month");
 const reportBaseMonth = document.getElementById("report-base-month");
 const reportBaseHelp = document.getElementById("report-base-help");
 
@@ -118,7 +117,6 @@ function wireForms() {
     setDefaultDates();
   });
 
-  document.getElementById("refresh-consolidated").addEventListener("click", renderConsolidated);
   document.getElementById("generate-report").addEventListener("click", generateReport);
   document.getElementById("report-period").addEventListener("change", updateReportBaseInput);
   document.getElementById("export-report-pdf").addEventListener("click", exportReportPdf);
@@ -136,7 +134,6 @@ function renderAll() {
   renderIncomes();
   renderExpenseAllocations();
   renderIncomeAllocations();
-  renderConsolidated();
 }
 
 function renderExpenseOptions() {
@@ -277,34 +274,6 @@ function renderIncomeAllocations() {
       document.getElementById("allocation-income-repeat").value = item.repeat;
     });
   });
-}
-
-function renderConsolidated() {
-  const [year, month] = consolidatedMonth.value.split("-").map(Number);
-  const totalExpenses = totalInMonth("expense", year, month);
-  const totalIncomes = totalInMonth("income", year, month);
-  const profit = totalIncomes - totalExpenses;
-  const margin = totalIncomes > 0 ? (profit / totalIncomes) * 100 : 0;
-
-  document.getElementById("consolidated-result").innerHTML = `
-    <div class="metric"><span>Receitas</span><strong>${money.format(totalIncomes)}</strong></div>
-    <div class="metric"><span>Despesas</span><strong>${money.format(totalExpenses)}</strong></div>
-    <div class="metric"><span>Rentabilidade</span><strong>${money.format(profit)} (${margin.toFixed(2)}%)</strong></div>
-  `;
-
-  const topExpenses = [...state.expenses]
-    .sort((a, b) => b.amount - a.amount)
-    .slice(0, 3)
-    .map((item) => `<li>${item.description}: ${money.format(item.amount)}</li>`)
-    .join("");
-
-  document.getElementById("analytics-output").innerHTML = `
-    <h4>Visão analítica rápida</h4>
-    <p>Total de despesas cadastradas: <strong>${state.expenses.length}</strong></p>
-    <p>Total de receitas cadastradas: <strong>${state.incomes.length}</strong></p>
-    <p>Principais despesas:</p>
-    <ul>${topExpenses || "<li>Nenhuma despesa cadastrada.</li>"}</ul>
-  `;
 }
 
 function generateReport() {
@@ -479,9 +448,13 @@ function totalInMonth(kind, year, month) {
   const items = kind === "expense" ? state.expenses : state.incomes;
 
   return allocations.reduce((acc, allocation) => {
-    const targetDate = new Date(year, month - 1, 1);
     const startDate = new Date(`${allocation.startDate}T00:00:00`);
-    if (startDate > targetDate) return acc;
+    if (Number.isNaN(startDate.getTime())) return acc;
+
+    const startYear = startDate.getFullYear();
+    const startMonth = startDate.getMonth() + 1;
+    const startsAfterTarget = startYear > year || (startYear === year && startMonth > month);
+    if (startsAfterTarget) return acc;
 
     const itemId = kind === "expense" ? allocation.expenseId : allocation.incomeId;
     const item = items.find((entry) => entry.id === itemId);
@@ -537,9 +510,7 @@ function setBackupStatus(message, isError) {
 }
 
 function setDefaultDates() {
-  const currentMonth = new Date().toISOString().slice(0, 7);
   const today = new Date().toISOString().slice(0, 10);
-  if (!consolidatedMonth.value) consolidatedMonth.value = currentMonth;
   if (!reportBaseMonth.value) reportBaseMonth.value = new Date().getFullYear().toString();
   if (!document.getElementById("allocation-expense-date").value) {
     document.getElementById("allocation-expense-date").value = today;
