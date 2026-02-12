@@ -47,10 +47,9 @@ function wireForms() {
     event.preventDefault();
     const description = document.getElementById("expense-description").value.trim();
     const type = document.getElementById("expense-type").value;
-    const amount = Number(document.getElementById("expense-amount").value);
-    if (!description || amount <= 0) return;
+    if (!description) return;
 
-    state.expenses.push({ id: crypto.randomUUID(), description, type, amount });
+    state.expenses.push({ id: crypto.randomUUID(), description, type });
     expenseForm.reset();
     persistAndRender();
   });
@@ -59,10 +58,9 @@ function wireForms() {
     event.preventDefault();
     const sourceType = document.getElementById("income-type").value;
     const sourceName = document.getElementById("income-source").value.trim();
-    const amount = Number(document.getElementById("income-amount").value);
-    if (!sourceName || amount <= 0) return;
+    if (!sourceName) return;
 
-    state.incomes.push({ id: crypto.randomUUID(), sourceType, sourceName, amount });
+    state.incomes.push({ id: crypto.randomUUID(), sourceType, sourceName });
     incomeForm.reset();
     persistAndRender();
   });
@@ -72,10 +70,13 @@ function wireForms() {
     const payload = {
       expenseId: document.getElementById("allocation-expense-id").value,
       startDate: document.getElementById("allocation-expense-date").value,
-      repeat: document.getElementById("allocation-expense-repeat").value,
+      valueType: document.getElementById("allocation-expense-value-type").value,
+      amount: Number(document.getElementById("allocation-expense-amount").value),
+      periodicity: document.getElementById("allocation-expense-periodicity").value,
+      recurring: document.getElementById("allocation-expense-recurring").value,
     };
     const editId = document.getElementById("allocation-expense-edit-id").value;
-    if (!payload.expenseId || !payload.startDate) return;
+    if (!payload.expenseId || !payload.startDate || payload.amount <= 0) return;
 
     if (editId) {
       const current = state.expenseAllocations.find((item) => item.id === editId);
@@ -95,10 +96,13 @@ function wireForms() {
     const payload = {
       incomeId: document.getElementById("allocation-income-id").value,
       startDate: document.getElementById("allocation-income-date").value,
-      repeat: document.getElementById("allocation-income-repeat").value,
+      valueType: document.getElementById("allocation-income-value-type").value,
+      amount: Number(document.getElementById("allocation-income-amount").value),
+      periodicity: document.getElementById("allocation-income-periodicity").value,
+      recurring: document.getElementById("allocation-income-recurring").value,
     };
     const editId = document.getElementById("allocation-income-edit-id").value;
-    if (!payload.incomeId || !payload.startDate) return;
+    if (!payload.incomeId || !payload.startDate || payload.amount <= 0) return;
 
     if (editId) {
       const current = state.incomeAllocations.find((item) => item.id === editId);
@@ -159,11 +163,15 @@ function wireForms() {
     incomeTypeSelect.value = created.id;
   });
 
+  document.getElementById("allocation-expense-recurring").addEventListener("change", toggleExpensePeriodicityState);
+  document.getElementById("allocation-income-recurring").addEventListener("change", toggleIncomePeriodicityState);
   document.getElementById("generate-report").addEventListener("click", generateReport);
   document.getElementById("report-period").addEventListener("change", updateReportBaseInput);
   document.getElementById("export-report-pdf").addEventListener("click", exportReportPdf);
 
   updateReportBaseInput();
+  toggleExpensePeriodicityState();
+  toggleIncomePeriodicityState();
 
   document.getElementById("download-data").addEventListener("click", downloadDataBackup);
   document.getElementById("upload-data").addEventListener("change", restoreDataBackup);
@@ -217,7 +225,7 @@ function renderExpenses() {
       <li>
         <div>
           <strong>${item.description}</strong>
-          <div class="meta">${getExpenseTypeLabel(item.type)} • ${money.format(item.amount)}</div>
+          <div class="meta">${getExpenseTypeLabel(item.type)}</div>
         </div>
         <button class="danger" data-delete-expense="${item.id}">Excluir</button>
       </li>
@@ -241,7 +249,7 @@ function renderIncomes() {
       <li>
         <div>
           <strong>${item.sourceName}</strong>
-          <div class="meta">${getIncomeOriginLabel(item.sourceType)} • ${money.format(item.amount)}</div>
+          <div class="meta">${getIncomeOriginLabel(item.sourceType)}</div>
         </div>
         <button class="danger" data-delete-income="${item.id}">Excluir</button>
       </li>
@@ -268,7 +276,7 @@ function renderExpenseAllocations() {
         <li>
           <div>
             <strong>${expense.description}</strong>
-            <div class="meta">${formatDate(allocation.startDate)} • ${allocation.repeat}</div>
+            <div class="meta">${formatDate(allocation.startDate)} • ${formatAllocationMeta(allocation)} • ${money.format(getAllocationAmount(allocation, income.amount || 0))}</div>
           </div>
           <div class="actions">
             <button class="secondary" data-edit-expense-allocation="${allocation.id}">Alterar</button>
@@ -294,7 +302,11 @@ function renderExpenseAllocations() {
       document.getElementById("allocation-expense-edit-id").value = item.id;
       document.getElementById("allocation-expense-id").value = item.expenseId;
       document.getElementById("allocation-expense-date").value = item.startDate;
-      document.getElementById("allocation-expense-repeat").value = item.repeat;
+      document.getElementById("allocation-expense-value-type").value = item.valueType || "fixo";
+      document.getElementById("allocation-expense-amount").value = getAllocationAmount(item, state.expenses.find((e) => e.id === item.expenseId)?.amount || 0);
+      document.getElementById("allocation-expense-periodicity").value = item.periodicity || item.repeat || "mensal";
+      document.getElementById("allocation-expense-recurring").value = item.recurring || "sim";
+      toggleExpensePeriodicityState();
     });
   });
 }
@@ -309,7 +321,7 @@ function renderIncomeAllocations() {
         <li>
           <div>
             <strong>${income.sourceName}</strong>
-            <div class="meta">${formatDate(allocation.startDate)} • ${allocation.repeat}</div>
+            <div class="meta">${formatDate(allocation.startDate)} • ${formatAllocationMeta(allocation)} • ${money.format(getAllocationAmount(allocation, expense.amount || 0))}</div>
           </div>
           <div class="actions">
             <button class="secondary" data-edit-income-allocation="${allocation.id}">Alterar</button>
@@ -335,7 +347,11 @@ function renderIncomeAllocations() {
       document.getElementById("allocation-income-edit-id").value = item.id;
       document.getElementById("allocation-income-id").value = item.incomeId;
       document.getElementById("allocation-income-date").value = item.startDate;
-      document.getElementById("allocation-income-repeat").value = item.repeat;
+      document.getElementById("allocation-income-value-type").value = item.valueType || "fixo";
+      document.getElementById("allocation-income-amount").value = getAllocationAmount(item, state.incomes.find((e) => e.id === item.incomeId)?.amount || 0);
+      document.getElementById("allocation-income-periodicity").value = item.periodicity || item.repeat || "mensal";
+      document.getElementById("allocation-income-recurring").value = item.recurring || "sim";
+      toggleIncomePeriodicityState();
     });
   });
 }
@@ -524,8 +540,18 @@ function totalInMonth(kind, year, month) {
     const item = items.find((entry) => entry.id === itemId);
     if (!item) return acc;
 
-    const multiplier = allocation.repeat === "quinzenal" ? 2 : 1;
-    return acc + item.amount * multiplier;
+    const allocationAmount = getAllocationAmount(allocation, item.amount || 0);
+    if (allocationAmount <= 0) return acc;
+
+    const recurring = allocation.recurring || "sim";
+    if (recurring === "nao") {
+      const sameMonth = startYear === year && startMonth === month;
+      return sameMonth ? acc + allocationAmount : acc;
+    }
+
+    const periodicity = allocation.periodicity || allocation.repeat || "mensal";
+    const multiplier = periodicity === "quinzenal" ? 2 : 1;
+    return acc + allocationAmount * multiplier;
   }, 0);
 }
 
@@ -585,12 +611,44 @@ function setDefaultDates() {
   if (!document.getElementById("allocation-income-date").value) {
     document.getElementById("allocation-income-date").value = today;
   }
+  if (!document.getElementById("allocation-expense-recurring").value) {
+    document.getElementById("allocation-expense-recurring").value = "sim";
+  }
+  if (!document.getElementById("allocation-income-recurring").value) {
+    document.getElementById("allocation-income-recurring").value = "sim";
+  }
+  toggleExpensePeriodicityState();
+  toggleIncomePeriodicityState();
 }
 
 function formatDate(value) {
   if (!value) return "-";
   const [year, month, day] = value.split("-");
   return `${day}/${month}/${year}`;
+}
+
+function toggleExpensePeriodicityState() {
+  const recurring = document.getElementById("allocation-expense-recurring").value;
+  document.getElementById("allocation-expense-periodicity").disabled = recurring === "nao";
+}
+
+function toggleIncomePeriodicityState() {
+  const recurring = document.getElementById("allocation-income-recurring").value;
+  document.getElementById("allocation-income-periodicity").disabled = recurring === "nao";
+}
+
+function getAllocationAmount(allocation, fallbackAmount) {
+  const amount = Number(allocation.amount);
+  if (Number.isFinite(amount) && amount > 0) return amount;
+  return Number(fallbackAmount) || 0;
+}
+
+function formatAllocationMeta(allocation) {
+  const valueType = allocation.valueType || "fixo";
+  const recurring = allocation.recurring || "sim";
+  if (recurring === "nao") return `${valueType} • sem repetição`;
+  const periodicity = allocation.periodicity || allocation.repeat || "mensal";
+  return `${valueType} • ${periodicity}`;
 }
 
 function persistAndRender() {
