@@ -13,6 +13,7 @@ const expenseAllocationForm = document.getElementById("expense-allocation-form")
 const incomeAllocationForm = document.getElementById("income-allocation-form");
 const consolidatedMonth = document.getElementById("consolidated-month");
 const reportBaseMonth = document.getElementById("report-base-month");
+const reportBaseHelp = document.getElementById("report-base-help");
 
 wireNavigation();
 wireForms();
@@ -119,7 +120,10 @@ function wireForms() {
 
   document.getElementById("refresh-consolidated").addEventListener("click", renderConsolidated);
   document.getElementById("generate-report").addEventListener("click", generateReport);
+  document.getElementById("report-period").addEventListener("change", updateReportBaseInput);
   document.getElementById("export-report-pdf").addEventListener("click", exportReportPdf);
+
+  updateReportBaseInput();
 
   document.getElementById("download-data").addEventListener("click", downloadDataBackup);
   document.getElementById("upload-data").addEventListener("change", restoreDataBackup);
@@ -305,20 +309,21 @@ function renderConsolidated() {
 
 function generateReport() {
   const period = document.getElementById("report-period").value;
-  const [baseYear, baseMonth] = reportBaseMonth.value.split("-").map(Number);
-  const monthsCount = { mensal: 1, trimestral: 3, semestral: 6, anual: 12 }[period];
+  const parsedBase = parseReportBase(period, reportBaseMonth.value);
+  if (!parsedBase) {
+    alert("Data base inválida para o período selecionado.");
+    return;
+  }
 
+  const { year, startMonth, monthsCount } = parsedBase;
   const rows = [];
   for (let i = 0; i < monthsCount; i += 1) {
-    const date = new Date(baseYear, baseMonth - 1 - i, 1);
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
+    const month = startMonth + i;
     const expenses = totalInMonth("expense", year, month);
     const incomes = totalInMonth("income", year, month);
     rows.push({ year, month, expenses, incomes, result: incomes - expenses });
   }
 
-  rows.reverse();
   lastReportData = { period, rows };
 
   const tableRows = rows
@@ -340,6 +345,65 @@ function generateReport() {
       <tbody>${tableRows}</tbody>
     </table>
   `;
+}
+
+function updateReportBaseInput() {
+  const period = document.getElementById("report-period").value;
+  const currentYear = new Date().getFullYear();
+
+  if (period === "mensal") {
+    reportBaseMonth.placeholder = "mm-aaaa";
+    reportBaseMonth.value = reportBaseMonth.value && /^(0[1-9]|1[0-2])-\d{4}$/.test(reportBaseMonth.value)
+      ? reportBaseMonth.value
+      : `01-${currentYear}`;
+    reportBaseHelp.textContent = "Mensal: informe no formato mm-aaaa (ex.: 02-2026).";
+    return;
+  }
+
+  if (period === "trimestral") {
+    reportBaseMonth.placeholder = "1, 2, 3 ou 4";
+    reportBaseMonth.value = /^[1-4]$/.test(reportBaseMonth.value) ? reportBaseMonth.value : "1";
+    reportBaseHelp.textContent = "Trimestral: informe o trimestre (1, 2, 3 ou 4).";
+    return;
+  }
+
+  if (period === "semestral") {
+    reportBaseMonth.placeholder = "1 ou 2";
+    reportBaseMonth.value = /^[1-2]$/.test(reportBaseMonth.value) ? reportBaseMonth.value : "1";
+    reportBaseHelp.textContent = "Semestral: informe o semestre (1 ou 2).";
+    return;
+  }
+
+  reportBaseMonth.placeholder = "aaaa";
+  reportBaseMonth.value = /^\d{4}$/.test(reportBaseMonth.value) ? reportBaseMonth.value : String(currentYear);
+  reportBaseHelp.textContent = "Anual: informe apenas o ano (ex.: 2026).";
+}
+
+function parseReportBase(period, rawValue) {
+  const value = String(rawValue || "").trim();
+
+  if (period === "mensal") {
+    const match = value.match(/^(0[1-9]|1[0-2])-(\d{4})$/);
+    if (!match) return null;
+    return { year: Number(match[2]), startMonth: Number(match[1]), monthsCount: 1 };
+  }
+
+  if (period === "trimestral") {
+    if (!/^[1-4]$/.test(value)) return null;
+    const quarter = Number(value);
+    const year = new Date().getFullYear();
+    return { year, startMonth: (quarter - 1) * 3 + 1, monthsCount: 3 };
+  }
+
+  if (period === "semestral") {
+    if (!/^[1-2]$/.test(value)) return null;
+    const semester = Number(value);
+    const year = new Date().getFullYear();
+    return { year, startMonth: semester === 1 ? 1 : 7, monthsCount: 6 };
+  }
+
+  if (!/^\d{4}$/.test(value)) return null;
+  return { year: Number(value), startMonth: 1, monthsCount: 12 };
 }
 
 function exportReportPdf() {
@@ -445,7 +509,7 @@ function setDefaultDates() {
   const currentMonth = new Date().toISOString().slice(0, 7);
   const today = new Date().toISOString().slice(0, 10);
   if (!consolidatedMonth.value) consolidatedMonth.value = currentMonth;
-  if (!reportBaseMonth.value) reportBaseMonth.value = currentMonth;
+  if (!reportBaseMonth.value) reportBaseMonth.value = new Date().getFullYear().toString();
   if (!document.getElementById("allocation-expense-date").value) {
     document.getElementById("allocation-expense-date").value = today;
   }
