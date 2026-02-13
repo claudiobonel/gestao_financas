@@ -21,6 +21,11 @@ const expenseTypeSelect = document.getElementById("expense-type");
 const incomeTypeSelect = document.getElementById("income-type");
 const newExpenseTypeInput = document.getElementById("new-expense-type");
 const newIncomeOriginInput = document.getElementById("new-income-origin");
+const calendarFilterType = document.getElementById("calendar-filter-type");
+const calendarMonthInput = document.getElementById("calendar-month");
+const calendarYearInput = document.getElementById("calendar-year");
+const calendarQuarterInput = document.getElementById("calendar-quarter");
+const calendarSemesterInput = document.getElementById("calendar-semester");
 
 wireNavigation();
 wireForms();
@@ -165,11 +170,15 @@ function wireForms() {
 
   document.getElementById("allocation-expense-recurring").addEventListener("change", toggleExpensePeriodicityState);
   document.getElementById("allocation-income-recurring").addEventListener("change", toggleIncomePeriodicityState);
+  document.getElementById("generate-calendar").addEventListener("click", renderCalendarView);
+  calendarFilterType.addEventListener("change", updateCalendarFilterInputs);
+
   document.getElementById("generate-report").addEventListener("click", generateReport);
   document.getElementById("report-period").addEventListener("change", updateReportBaseInput);
   document.getElementById("export-report-pdf").addEventListener("click", exportReportPdf);
 
   updateReportBaseInput();
+  updateCalendarFilterInputs();
   toggleExpensePeriodicityState();
   toggleIncomePeriodicityState();
 
@@ -186,6 +195,7 @@ function renderAll() {
   renderIncomes();
   renderExpenseAllocations();
   renderIncomeAllocations();
+  renderCalendarView();
 }
 
 function renderExpenseTypeOptions() {
@@ -649,6 +659,161 @@ function formatAllocationMeta(allocation) {
   if (recurring === "nao") return `${valueType} • sem repetição`;
   const periodicity = allocation.periodicity || allocation.repeat || "mensal";
   return `${valueType} • ${periodicity}`;
+}
+
+
+function updateCalendarFilterInputs() {
+  const filter = calendarFilterType.value;
+  document.getElementById("calendar-month-wrap").classList.toggle("hidden", filter !== "mes");
+  document.getElementById("calendar-year-wrap").classList.toggle("hidden", filter === "mes");
+  document.getElementById("calendar-quarter-wrap").classList.toggle("hidden", filter !== "trimestre");
+  document.getElementById("calendar-semester-wrap").classList.toggle("hidden", filter !== "semestre");
+
+  const now = new Date();
+  if (!calendarMonthInput.value) calendarMonthInput.value = `${String(now.getMonth() + 1).padStart(2, "0")}-${now.getFullYear()}`;
+  if (!calendarYearInput.value) calendarYearInput.value = String(now.getFullYear());
+}
+
+function renderCalendarView() {
+  const months = getCalendarMonthsByFilter();
+  if (!months.length) {
+    document.getElementById("calendar-output").innerHTML = "<p class='meta'>Filtro inválido.</p>";
+    return;
+  }
+
+  const blocks = months.map(({ year, month }) => renderCalendarMonthBlock(year, month)).join("");
+  document.getElementById("calendar-output").innerHTML = blocks;
+}
+
+function getCalendarMonthsByFilter() {
+  const filter = calendarFilterType.value;
+  const year = Number(calendarYearInput.value);
+
+  if (filter === "mes") {
+    const match = String(calendarMonthInput.value || "").trim().match(/^(0[1-9]|1[0-2])-(\d{4})$/);
+    if (!match) return [];
+    return [{ month: Number(match[1]), year: Number(match[2]) }];
+  }
+
+  if (!Number.isInteger(year) || year < 2000) return [];
+
+  if (filter === "ano") {
+    return Array.from({ length: 12 }, (_, i) => ({ year, month: i + 1 }));
+  }
+
+  if (filter === "trimestre") {
+    const quarter = Number(calendarQuarterInput.value);
+    const start = (quarter - 1) * 3 + 1;
+    return [0, 1, 2].map((d) => ({ year, month: start + d }));
+  }
+
+  const semester = Number(calendarSemesterInput.value);
+  const start = semester === 1 ? 1 : 7;
+  return [0, 1, 2, 3, 4, 5].map((d) => ({ year, month: start + d }));
+}
+
+function renderCalendarMonthBlock(year, month) {
+  const expenseEntries = getEntriesForMonth("expense", year, month);
+  const incomeEntries = getEntriesForMonth("income", year, month);
+
+  const allDays = [...new Set([...expenseEntries.days, ...incomeEntries.days])].sort((a, b) => a - b);
+  const dayHeaders = allDays.map((day) => `<th>${day}</th>`).join("");
+
+  const expenseRows = expenseEntries.rows.map((row) => {
+    const cells = allDays.map((day) => `<td>${row.values[day] ? money.format(row.values[day]) : "-"}</td>`).join("");
+    return `<tr><td class="row-title">${row.label}</td>${cells}</tr>`;
+  }).join("");
+
+  const incomeRows = incomeEntries.rows.map((row) => {
+    const cells = allDays.map((day) => `<td>${row.values[day] ? money.format(row.values[day]) : "-"}</td>`).join("");
+    return `<tr><td class="row-title">${row.label}</td>${cells}</tr>`;
+  }).join("");
+
+  const expenseTotal = allDays.map((day) => `<td>${expenseEntries.totalByDay[day] ? money.format(expenseEntries.totalByDay[day]) : "-"}</td>`).join("");
+  const incomeTotal = allDays.map((day) => `<td>${incomeEntries.totalByDay[day] ? money.format(incomeEntries.totalByDay[day]) : "-"}</td>`).join("");
+
+  const monthLabel = `${String(month).padStart(2, "0")}/${year}`;
+
+  return `
+    <div class="calendar-month-block">
+      <h4>${monthLabel}</h4>
+      <table class="calendar-grid">
+        <thead><tr><th class="row-title">Pagamentos</th>${dayHeaders}</tr></thead>
+        <tbody>
+          ${expenseRows || `<tr><td class="row-title">Sem despesas</td>${allDays.map(() => "<td>-</td>").join("")}</tr>`}
+          <tr class="calendar-total"><td class="row-title">Total Despesas</td>${expenseTotal}</tr>
+        </tbody>
+      </table>
+
+      <table class="calendar-grid">
+        <thead><tr><th class="row-title">Recebimentos</th>${dayHeaders}</tr></thead>
+        <tbody>
+          ${incomeRows || `<tr><td class="row-title">Sem receitas</td>${allDays.map(() => "<td>-</td>").join("")}</tr>`}
+          <tr class="calendar-total"><td class="row-title">Total Receitas</td>${incomeTotal}</tr>
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function getEntriesForMonth(kind, year, month) {
+  const allocations = kind === "expense" ? state.expenseAllocations : state.incomeAllocations;
+  const items = kind === "expense" ? state.expenses : state.incomes;
+  const rows = [];
+  const days = new Set();
+  const totalByDay = {};
+
+  allocations.forEach((allocation) => {
+    const itemId = kind === "expense" ? allocation.expenseId : allocation.incomeId;
+    const item = items.find((entry) => entry.id === itemId);
+    if (!item) return;
+
+    if (!doesAllocationOccurInMonth(allocation, year, month)) return;
+
+    const amount = getAllocationAmount(allocation, item.amount || 0);
+    if (amount <= 0) return;
+
+    const startDate = new Date(`${allocation.startDate}T00:00:00`);
+    const day = Math.min(startDate.getDate(), daysInMonth(year, month));
+
+    const label = kind === "expense" ? item.description : item.sourceName;
+    const row = { label, values: { [day]: amount } };
+
+    const periodicity = allocation.periodicity || allocation.repeat || "mensal";
+    const recurring = allocation.recurring || "sim";
+    if (recurring === "sim" && periodicity === "quinzenal") {
+      const day2 = day + 15;
+      if (day2 <= daysInMonth(year, month)) {
+        row.values[day2] = (row.values[day2] || 0) + amount;
+      }
+    }
+
+    Object.entries(row.values).forEach(([d, v]) => {
+      const dn = Number(d);
+      days.add(dn);
+      totalByDay[dn] = (totalByDay[dn] || 0) + v;
+    });
+
+    rows.push(row);
+  });
+
+  return { rows, days: [...days], totalByDay };
+}
+
+function doesAllocationOccurInMonth(allocation, year, month) {
+  const startDate = new Date(`${allocation.startDate}T00:00:00`);
+  if (Number.isNaN(startDate.getTime())) return false;
+
+  const startYear = startDate.getFullYear();
+  const startMonth = startDate.getMonth() + 1;
+  const recurring = allocation.recurring || "sim";
+
+  if (recurring === "nao") return startYear === year && startMonth === month;
+  return startYear < year || (startYear === year && startMonth <= month);
+}
+
+function daysInMonth(year, month) {
+  return new Date(year, month, 0).getDate();
 }
 
 function persistAndRender() {

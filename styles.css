@@ -198,6 +198,44 @@ button.danger { background: var(--danger); }
 
 .report-table th { background: #f8fafc; }
 
+
+.hidden { display: none; }
+
+.calendar-month-block {
+  margin-top: 1rem;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  padding: 0.8rem;
+  background: #f8fbff;
+}
+
+.calendar-month-block h4 { margin: 0 0 0.6rem; }
+
+.calendar-grid {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.9rem;
+}
+
+.calendar-grid th,
+.calendar-grid td {
+  border: 1px solid #dbe3ef;
+  padding: 0.45rem;
+  font-size: 0.88rem;
+  vertical-align: top;
+}
+
+.calendar-grid .row-title {
+  width: 220px;
+  font-weight: 600;
+  background: #f1f5f9;
+}
+
+.calendar-total {
+  font-weight: 700;
+  background: #e8f3ff;
+}
+
 @media (max-width: 860px) {
   .app-shell { grid-template-columns: 1fr; }
   .sidebar { border-right: none; border-bottom: 1px solid #1e293b; }

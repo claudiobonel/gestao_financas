@@ -20,6 +20,7 @@
         <button class="nav-link active" data-page="cadastros">Cadastros</button>
         <button class="nav-link" data-page="alocacoes">Alocações</button>
         <button class="nav-link" data-page="analitico">Relatório Analítico</button>
+        <button class="nav-link" data-page="calendario">Calendário</button>
         <button class="nav-link" data-page="dados">Backup de Dados</button>
       </nav>
     </aside>
@@ -177,6 +178,42 @@
           </div>
           <small id="report-base-help" class="meta-text"></small>
           <div id="report-output"></div>
+        </article>
+      </section>
+
+
+      <section class="page" data-page="calendario">
+        <article class="card">
+          <h3>Calendário Financeiro</h3>
+          <div class="inline-controls">
+            <label>Filtro
+              <select id="calendar-filter-type">
+                <option value="mes">Mês</option>
+                <option value="ano">Ano</option>
+                <option value="trimestre">Trimestre</option>
+                <option value="semestre">Semestre</option>
+              </select>
+            </label>
+            <label id="calendar-month-wrap">Mês (mm-aaaa)<input type="text" id="calendar-month" placeholder="02-2026" /></label>
+            <label id="calendar-year-wrap" class="hidden">Ano<input type="number" id="calendar-year" min="2000" max="2100" /></label>
+            <label id="calendar-quarter-wrap" class="hidden">Trimestre
+              <select id="calendar-quarter">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+              </select>
+            </label>
+            <label id="calendar-semester-wrap" class="hidden">Semestre
+              <select id="calendar-semester">
+                <option value="1">1</option>
+                <option value="2">2</option>
+              </select>
+            </label>
+            <button id="generate-calendar">Gerar calendário</button>
+          </div>
+          <small class="meta-text">Visualização de pagamentos e recebimentos por dia.</small>
+          <div id="calendar-output"></div>
         </article>
       </section>
 
