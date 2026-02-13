@@ -276,7 +276,7 @@ function renderExpenseAllocations() {
         <li>
           <div>
             <strong>${expense.description}</strong>
-            <div class="meta">${formatDate(allocation.startDate)} • ${formatAllocationMeta(allocation)} • ${money.format(getAllocationAmount(allocation, income.amount || 0))}</div>
+            <div class="meta">${formatDate(allocation.startDate)} • ${formatAllocationMeta(allocation)} • ${money.format(getAllocationAmount(allocation, expense.amount || 0))}</div>
           </div>
           <div class="actions">
             <button class="secondary" data-edit-expense-allocation="${allocation.id}">Alterar</button>
@@ -321,7 +321,7 @@ function renderIncomeAllocations() {
         <li>
           <div>
             <strong>${income.sourceName}</strong>
-            <div class="meta">${formatDate(allocation.startDate)} • ${formatAllocationMeta(allocation)} • ${money.format(getAllocationAmount(allocation, expense.amount || 0))}</div>
+            <div class="meta">${formatDate(allocation.startDate)} • ${formatAllocationMeta(allocation)} • ${money.format(getAllocationAmount(allocation, income.amount || 0))}</div>
           </div>
           <div class="actions">
             <button class="secondary" data-edit-income-allocation="${allocation.id}">Alterar</button>
