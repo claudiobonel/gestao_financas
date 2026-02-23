@@ -1,0 +1,11 @@
+{
+  "name": "gestao-financas",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Aplicação web para gestão de despesas e receitas",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check app.js && node --check server.js && node --check package-app.js",
+    "package": "node package-app.js"
+  }
+}

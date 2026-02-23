@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestão Financeira</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <h1>Gestão Financeira</h1>
+        <p>Painel de despesas e receitas</p>
+      </div>
+      <nav class="nav" aria-label="Navegação principal">
+        <button class="nav-link active" data-page="cadastros">Cadastros</button>
+        <button class="nav-link" data-page="alocacoes">Alocações</button>
+        <button class="nav-link" data-page="analitico">Relatório Analítico</button>
+        <button class="nav-link" data-page="calendario">Calendário</button>
+        <button class="nav-link" data-page="dados">Backup de Dados</button>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <header class="topbar">
+        <h2 id="page-title">Cadastros</h2>
+      </header>
+
+      <section class="page active" data-page="cadastros">
+        <div class="grid cols-2">
+          <article class="card">
+            <h3>Cadastrar Despesa</h3>
+            <form id="expense-form" class="form-grid">
+              <label>Descrição<input required id="expense-description" type="text" /></label>
+              <label>Tipo
+                <div class="inline-add">
+                  <select id="expense-type" required></select>
+                  <input id="new-expense-type" type="text" placeholder="Novo tipo" />
+                  <button id="add-expense-type" type="button" class="secondary">Cadastrar tipo</button>
+                </div>
+              </label>
+                            <button type="submit">Salvar Despesa</button>
+            </form>
+          </article>
+
+          <article class="card">
+            <h3>Cadastrar Receita</h3>
+            <form id="income-form" class="form-grid">
+              <label>Origem
+                <div class="inline-add">
+                  <select id="income-type" required></select>
+                  <input id="new-income-origin" type="text" placeholder="Nova origem" />
+                  <button id="add-income-origin" type="button" class="secondary">Cadastrar origem</button>
+                </div>
+              </label>
+              <label>Empresa / Cliente<input required id="income-source" type="text" /></label>
+                            <button type="submit">Salvar Receita</button>
+            </form>
+          </article>
+        </div>
+
+        <div class="grid cols-2">
+          <article class="card">
+            <h3>Despesas cadastradas</h3>
+            <ul id="expenses-list" class="list"></ul>
+          </article>
+
+          <article class="card">
+            <h3>Receitas cadastradas</h3>
+            <ul id="incomes-list" class="list"></ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="page" data-page="alocacoes">
+        <div class="grid cols-2">
+          <article class="card">
+            <h3>Alocar Despesa</h3>
+            <form id="expense-allocation-form" class="form-grid">
+              <label>Despesa
+                <select id="allocation-expense-id" required></select>
+              </label>
+              <label>Data de início<input id="allocation-expense-date" type="date" required /></label>
+              <label>Tipo de valor
+                <select id="allocation-expense-value-type" required>
+                  <option value="fixo">Fixo</option>
+                  <option value="variavel">Variável</option>
+                </select>
+              </label>
+              <label>Valor (R$)<input id="allocation-expense-amount" type="number" min="0" step="0.01" required /></label>
+              <label>Periodicidade
+                <select id="allocation-expense-periodicity" required>
+                  <option value="mensal">Mensal</option>
+                  <option value="quinzenal">Quinzenal</option>
+                </select>
+              </label>
+              <label>Repetir valor?
+                <select id="allocation-expense-recurring" required>
+                  <option value="sim">Sim</option>
+                  <option value="nao">Não</option>
+                </select>
+              </label>
+              <input type="hidden" id="allocation-expense-edit-id" />
+              <div class="actions">
+                <button type="submit">Salvar Alocação</button>
+                <button type="button" id="expense-allocation-cancel" class="secondary">Cancelar edição</button>
+              </div>
+            </form>
+          </article>
+
+          <article class="card">
+            <h3>Alocar Receita</h3>
+            <form id="income-allocation-form" class="form-grid">
+              <label>Receita
+                <select id="allocation-income-id" required></select>
+              </label>
+              <label>Data de início<input id="allocation-income-date" type="date" required /></label>
+              <label>Tipo de valor
+                <select id="allocation-income-value-type" required>
+                  <option value="fixo">Fixo</option>
+                  <option value="variavel">Variável</option>
+                </select>
+              </label>
+              <label>Valor (R$)<input id="allocation-income-amount" type="number" min="0" step="0.01" required /></label>
+              <label>Periodicidade
+                <select id="allocation-income-periodicity" required>
+                  <option value="mensal">Mensal</option>
+                  <option value="quinzenal">Quinzenal</option>
+                </select>
+              </label>
+              <label>Repetir valor?
+                <select id="allocation-income-recurring" required>
+                  <option value="sim">Sim</option>
+                  <option value="nao">Não</option>
+                </select>
+              </label>
+              <input type="hidden" id="allocation-income-edit-id" />
+              <div class="actions">
+                <button type="submit">Salvar Alocação</button>
+                <button type="button" id="income-allocation-cancel" class="secondary">Cancelar edição</button>
+              </div>
+            </form>
+          </article>
+        </div>
+
+        <div class="grid cols-2">
+          <article class="card">
+            <h3>Alocações de Despesas</h3>
+            <ul id="expense-allocations-list" class="list"></ul>
+          </article>
+
+          <article class="card">
+            <h3>Alocações de Receitas</h3>
+            <ul id="income-allocations-list" class="list"></ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="page" data-page="analitico">
+        <article class="card">
+          <h3>Relatório Analítico</h3>
+          <div class="inline-controls">
+            <label>Período
+              <select id="report-period">
+                <option value="mensal">Mensal</option>
+                <option value="trimestral">Trimestral</option>
+                <option value="semestral">Semestral</option>
+                <option value="anual">Anual</option>
+              </select>
+            </label>
+            <label>Data base<input type="text" id="report-base-month" /></label>
+            <button id="generate-report">Gerar relatório</button>
+            <button id="export-report-pdf" class="secondary">Exportar PDF</button>
+          </div>
+          <small id="report-base-help" class="meta-text"></small>
+          <div id="report-output"></div>
+        </article>
+      </section>
+
+
+      <section class="page" data-page="calendario">
+        <article class="card">
+          <h3>Calendário Financeiro</h3>
+          <div class="inline-controls">
+            <label>Filtro
+              <select id="calendar-filter-type">
+                <option value="mes">Mês</option>
+                <option value="ano">Ano</option>
+                <option value="trimestre">Trimestre</option>
+                <option value="semestre">Semestre</option>
+              </select>
+            </label>
+            <label id="calendar-month-wrap">Mês (mm-aaaa)<input type="text" id="calendar-month" placeholder="02-2026" /></label>
+            <label id="calendar-year-wrap" class="hidden">Ano<input type="number" id="calendar-year" min="2000" max="2100" /></label>
+            <label id="calendar-quarter-wrap" class="hidden">Trimestre
+              <select id="calendar-quarter">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+              </select>
+            </label>
+            <label id="calendar-semester-wrap" class="hidden">Semestre
+              <select id="calendar-semester">
+                <option value="1">1</option>
+                <option value="2">2</option>
+              </select>
+            </label>
+            <button id="generate-calendar">Gerar calendário</button>
+          </div>
+          <small class="meta-text">Visualização de pagamentos e recebimentos por dia.</small>
+          <div id="calendar-output"></div>
+        </article>
+      </section>
+
+      <section class="page" data-page="dados">
+        <article class="card">
+          <h3>Backup de Dados</h3>
+          <p>Faça download dos seus dados para guardar e restaurar quando precisar.</p>
+          <div class="actions">
+            <button id="download-data">Baixar dados (.json)</button>
+            <label class="file-label">Restaurar dados
+              <input id="upload-data" type="file" accept="application/json" />
+            </label>
+          </div>
+          <small id="backup-status" class="meta-text"></small>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
